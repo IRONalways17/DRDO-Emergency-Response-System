@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRDO Emergency Portal - Citizen Safety</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1rem 2rem;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(45deg, #4ade80, #22c55e);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .alert-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .emergency-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #dc2626, #b91c1c);
+            border: 8px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 2rem auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 0.5rem;
+            box-shadow: 0 8px 32px rgba(220, 38, 38, 0.4);
+        }
+        
+        .emergency-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 48px rgba(220, 38, 38, 0.6);
+        }
+        
+        .emergency-button:active {
+            transform: scale(0.95);
+        }
+        
+        .status-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #4ade80;
+            box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.3);
+        }
+        
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1rem;
+            margin: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #4ade80, #22c55e);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #dc2626, #b91c1c);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            background: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .tab.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .notification {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.5);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .notification.warning {
+            background: rgba(251, 191, 36, 0.2);
+            border-color: rgba(251, 191, 36, 0.5);
+        }
+        
+        .notification.danger {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+        
+        .location-info {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .quick-action {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .quick-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .quick-action-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .emergency-button {
+                width: 150px;
+                height: 150px;
+                font-size: 1rem;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Leaflet map styles */
+        .leaflet-popup-content-wrapper {
+            background: #1f2937;
+            color: white;
+        }
+        
+        .leaflet-popup-tip {
+            background: #1f2937;
+        }
+        
+        .leaflet-control-attribution {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+        }
+        
+        .leaflet-control-attribution a {
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">🛡️</div>
+            <div>
+                <h1>DRDO Emergency Portal</h1>
+                <p style="color: rgba(255, 255, 255, 0.8);">Citizen Safety & Emergency Reporting</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Connection Status -->
+        <div class="status-card">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h3>🌐 System Status</h3>
+                    <p id="connectionStatus">Connecting to emergency services...</p>
+                </div>
+                <div id="connectionIndicator" style="width: 12px; height: 12px; border-radius: 50%; background: #f59e0b;"></div>
+            </div>
+        </div>
+
+        <!-- Emergency Alert Section -->
+        <div class="alert-section">
+            <h2>🚨 Emergency Services</h2>
+            <p>Press the button below for immediate emergency assistance</p>
+            
+            <button class="emergency-button" onclick="emergencyAlert()">
+                <div style="font-size: 3rem;">🚨</div>
+                <div>EMERGENCY</div>
+                <div style="font-size: 0.9rem;">Press for Help</div>
+            </button>
+            
+            <p style="color: rgba(255, 255, 255, 0.8); font-size: 0.9rem;">
+                Emergency services will be notified immediately<br>
+                Your location will be shared automatically
+            </p>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('report')">📝 Report Incident</button>
+            <button class="tab" onclick="showTab('alerts')">🔔 Active Alerts</button>
+            <button class="tab" onclick="showTab('safety')">🛡️ Safety Info</button>
+        </div>
+
+        <!-- Report Incident Tab -->
+        <div id="reportTab" class="tab-content active">
+            <div class="status-card">
+                <h3>📝 Report an Incident</h3>
+                <p style="margin-bottom: 1.5rem; color: rgba(255, 255, 255, 0.8);">
+                    Help keep our community safe by reporting suspicious activities or security concerns
+                </p>
+                
+                <form id="incidentForm">
+                    <div class="form-group">
+                        <label for="incidentType">Incident Type</label>
+                        <select id="incidentType" required>
+                            <option value="">Select incident type</option>
+                            <option value="SUSPICIOUS_ACTIVITY">Suspicious Activity</option>
+                            <option value="SECURITY_BREACH">Security Breach</option>
+                            <option value="BOMB_THREAT">Bomb Threat</option>
+                            <option value="UNATTENDED_PACKAGE">Unattended Package</option>
+                            <option value="UNAUTHORIZED_ACCESS">Unauthorized Access</option>
+                            <option value="OTHER">Other Emergency</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="incidentTitle">Brief Description</label>
+                        <input type="text" id="incidentTitle" placeholder="Brief description of the incident" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="incidentDetails">Detailed Description</label>
+                        <textarea id="incidentDetails" rows="4" placeholder="Provide detailed information about what you observed" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="incidentLocation">Location</label>
+                        <input type="text" id="incidentLocation" placeholder="Specific location or address">
+                        <small style="color: rgba(255, 255, 255, 0.7); font-size: 0.9rem;">
+                            Your GPS location will be automatically included
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reporterName">Your Name (Optional)</label>
+                        <input type="text" id="reporterName" placeholder="Enter your name (optional for anonymous reporting)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reporterPhone">Contact Number (Optional)</label>
+                        <input type="tel" id="reporterPhone" placeholder="Your phone number for follow-up">
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 2rem;">
+                        <button type="submit" class="btn btn-primary">
+                            📤 Submit Report
+                        </button>
+                        <button type="button" class="btn btn-warning" onclick="submitUrgentReport()">
+                            ⚡ Submit as Urgent
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Location Map Section -->
+                <div style="margin-top: 2rem;">
+                    <h4 style="margin-bottom: 1rem;">📍 Incident Location</h4>
+                    <div id="locationMapContainer" style="height: 300px; background: rgba(0,0,0,0.2); border-radius: 8px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.2);">
+                        <div id="locationMap" style="height: 100%; width: 100%;"></div>
+                        <div style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+                            <button onclick="getCurrentLocation()" style="background: rgba(0,0,0,0.8); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                📍 Use Current Location
+                            </button>
+                        </div>
+                        <div id="locationStatus" style="position: absolute; bottom: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px;">
+                            Click on map or use GPS to set location
+                        </div>
+                    </div>
+                    <p style="font-size: 0.9rem; color: rgba(255,255,255,0.7); margin-top: 0.5rem;">
+                        📍 Click on the map to mark the incident location, or use the GPS button to automatically detect your current position.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Alerts Tab -->
+        <div id="alertsTab" class="tab-content">
+            <div class="status-card">
+                <h3>🔔 Active Alerts & Notifications</h3>
+                <div id="alertsList">
+                    <div style="text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.7);">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
+                        <p>No active alerts</p>
+                        <p style="font-size: 0.9rem;">All systems are secure</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <div class="quick-action" onclick="testAlert()">
+                    <div class="quick-action-icon">🧪</div>
+                    <h4>Test Alert</h4>
+                    <p>Receive test notification</p>
+                </div>
+                
+                <div class="quick-action" onclick="requestHelp()">
+                    <div class="quick-action-icon">🆘</div>
+                    <h4>Request Help</h4>
+                    <p>Non-emergency assistance</p>
+                </div>
+                
+                <div class="quick-action" onclick="reportSuspicious()">
+                    <div class="quick-action-icon">👁️</div>
+                    <h4>Report Suspicious</h4>
+                    <p>Quick suspicious activity report</p>
+                </div>
+                
+                <div class="quick-action" onclick="checkStatus()">
+                    <div class="quick-action-icon">📊</div>
+                    <h4>Check Status</h4>
+                    <p>View current security status</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Safety Info Tab -->
+        <div id="safetyTab" class="tab-content">
+            <div class="status-card">
+                <h3>🛡️ Emergency Safety Information</h3>
+                
+                <div class="notification">
+                    <span style="font-size: 1.5rem;">📞</span>
+                    <div>
+                        <strong>Emergency Contacts</strong>
+                        <p>Police: 100 | Fire: 101 | Ambulance: 108<br>
+                        DRDO Emergency: 1800-DRDO-HELP</p>
+                    </div>
+                </div>
+                
+                <h4 style="margin: 2rem 0 1rem;">🚨 In Case of Emergency</h4>
+                <ul style="list-style: none; padding-left: 0;">
+                    <li style="margin-bottom: 0.5rem;">✅ Stay calm and assess the situation</li>
+                    <li style="margin-bottom: 0.5rem;">✅ Move to a safe location if possible</li>
+                    <li style="margin-bottom: 0.5rem;">✅ Press the emergency button on this app</li>
+                    <li style="margin-bottom: 0.5rem;">✅ Call emergency services if needed</li>
+                    <li style="margin-bottom: 0.5rem;">✅ Follow instructions from security personnel</li>
+                </ul>
+                
+                <h4 style="margin: 2rem 0 1rem;">🔍 What to Report</h4>
+                <ul style="list-style: none; padding-left: 0;">
+                    <li style="margin-bottom: 0.5rem;">⚠️ Unattended bags or packages</li>
+                    <li style="margin-bottom: 0.5rem;">⚠️ Suspicious behavior or activities</li>
+                    <li style="margin-bottom: 0.5rem;">⚠️ Unauthorized access attempts</li>
+                    <li style="margin-bottom: 0.5rem;">⚠️ Security breaches or threats</li>
+                    <li style="margin-bottom: 0.5rem;">⚠️ Any immediate danger to people</li>
+                </ul>
+                
+                <div class="location-info">
+                    <h4>📍 Your Current Location</h4>
+                    <p id="locationInfo">Getting location...</p>
+                    <button class="btn btn-primary" onclick="updateLocation()" style="margin-top: 1rem;">
+                        🔄 Update Location
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let currentLocation = null;
+        let locationMap;
+        let selectedLocation = null;
+        let currentPositionMarker = null;
+        let incidentLocationMarker = null;
+        
+        // Initialize the application
+        function init() {
+            connectToServer();
+            initializeLocationMap();
+            updateLocation();
+        }
+        
+        // Initialize location map
+        function initializeLocationMap() {
+            // Initialize map centered on New Delhi, India
+            locationMap = L.map('locationMap').setView([28.6139, 77.2090], 12);
+            
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                minZoom: 3
+            }).addTo(locationMap);
+            
+            // Add click handler for location selection
+            locationMap.on('click', function(e) {
+                setIncidentLocation(e.latlng.lat, e.latlng.lng);
+            });
+            
+            console.log('🗺️ Location map initialized');
+        }
+        
+        // Set incident location on map
+        function setIncidentLocation(lat, lng) {
+            selectedLocation = { latitude: lat, longitude: lng };
+            
+            // Remove previous incident location marker
+            if (incidentLocationMarker) {
+                locationMap.removeLayer(incidentLocationMarker);
+            }
+            
+            // Add new incident location marker
+            const icon = L.divIcon({
+                html: '<div style="background: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; border: 2px solid white;">📍</div>',
+                className: 'custom-icon',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            
+            incidentLocationMarker = L.marker([lat, lng], { icon })
+                .addTo(locationMap)
+                .bindPopup(`
+                    <div style="color: #1f2937;">
+                        <strong>📍 Incident Location</strong><br>
+                        Lat: ${lat.toFixed(6)}<br>
+                        Lng: ${lng.toFixed(6)}
+                    </div>
+                `);
+            
+            // Update location status
+            document.getElementById('locationStatus').textContent = 
+                `Incident location set: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            
+            console.log(`📍 Incident location selected: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        }
+        
+        // Get current GPS location
+        function getCurrentLocation() {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by this browser.');
+                return;
+            }
+            
+            document.getElementById('locationStatus').textContent = 'Getting current location...';
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    // Set as incident location
+                    setIncidentLocation(lat, lng);
+                    
+                    // Center map on current location
+                    locationMap.setView([lat, lng], 16);
+                    
+                    // Update current location marker
+                    if (currentPositionMarker) {
+                        locationMap.removeLayer(currentPositionMarker);
+                    }
+                    
+                    const currentIcon = L.divIcon({
+                        html: '<div style="background: #3b82f6; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; border: 2px solid white; animation: pulse 2s infinite;">🛰️</div>',
+                        className: 'custom-icon',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+                    
+                    currentPositionMarker = L.marker([lat, lng], { icon: currentIcon })
+                        .addTo(locationMap)
+                        .bindPopup(`
+                            <div style="color: #1f2937;">
+                                <strong>🛰️ Your Current Position</strong><br>
+                                Accuracy: ±${Math.round(position.coords.accuracy)}m
+                            </div>
+                        `);
+                    
+                    currentLocation = { latitude: lat, longitude: lng };
+                    updateLocationInfo();
+                    
+                    console.log(`🛰️ Current location obtained: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                },
+                (error) => {
+                    let errorMessage = 'Error getting location: ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage += 'Location access denied';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage += 'Location unavailable';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage += 'Request timed out';
+                            break;
+                        default:
+                            errorMessage += 'Unknown error';
+                            break;
+                    }
+                    
+                    document.getElementById('locationStatus').textContent = errorMessage;
+                    console.error('🛰️', errorMessage);
+                    alert(errorMessage);
+                },
+                options
+            );
+        }
+        let isConnected = false;
+
+        // Initialize the application
+        function initializeApp() {
+            connectToServer();
+            getCurrentLocation();
+            
+            // Setup form submission
+            document.getElementById('incidentForm').addEventListener('submit', handleIncidentSubmit);
+        }
+
+        // Connection state management for Citizen Portal
+        let connectionState = {
+            isConnecting: false,
+            lastConnectionAttempt: 0,
+            connectionAttempts: 0,
+            maxAttempts: 3,  // Lower for citizen portal
+            cooldownPeriod: 60000, // 60 seconds for citizens
+            isInCooldown: false
+        };
+
+        function connectToServer() {
+            // Prevent multiple simultaneous connection attempts
+            if (connectionState.isConnecting) {
+                console.log('⏳ Connection already in progress...');
+                return;
+            }
+
+            // Check cooldown period
+            const now = Date.now();
+            if (connectionState.isInCooldown && (now - connectionState.lastConnectionAttempt) < connectionState.cooldownPeriod) {
+                const remainingTime = Math.ceil((connectionState.cooldownPeriod - (now - connectionState.lastConnectionAttempt)) / 1000);
+                console.log(`🔄 Connection in cooldown. Try again in ${remainingTime} seconds`);
+                return;
+            }
+
+            // Reset cooldown if enough time has passed
+            if (connectionState.isInCooldown && (now - connectionState.lastConnectionAttempt) >= connectionState.cooldownPeriod) {
+                connectionState.isInCooldown = false;
+                connectionState.connectionAttempts = 0;
+            }
+
+            connectionState.isConnecting = true;
+            connectionState.lastConnectionAttempt = now;
+            connectionState.connectionAttempts++;
+
+            // Socket.IO default configuration for Citizen Portal
+            const emergencyConfig = {
+                timeout: 20000,               // 20 seconds (Socket.IO default)
+                reconnection: true,           // Enable reconnection
+                reconnectionAttempts: 3,      // Reduced for citizen portal
+                reconnectionDelay: 1000,      // 1 second initial delay (Socket.IO default)
+                reconnectionDelayMax: 5000,   // 5 seconds maximum delay (Socket.IO default)
+                randomizationFactor: 0.5,     // Default randomization
+                
+                // Transport settings
+                transports: ['websocket', 'polling'],
+                upgrade: true,                // Allow transport upgrades
+                rememberUpgrade: true,        // Remember transport upgrades
+                
+                // Timeout settings - Socket.IO defaults
+                pingTimeout: 60000,          // 60 seconds (Socket.IO default)
+                pingInterval: 25000,         // 25 seconds (Socket.IO default)
+                
+                // Force new connection settings
+                forceNew: false,             // Reuse connections
+                multiplex: true,             // Multiplex connections
+                
+                // Query parameters
+                query: {
+                    emergency: 'true',       // Mark as emergency connection
+                    system: 'citizen_portal', // Identify connection type
+                    connectionId: `cit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                },
+                
+                // Extra headers for emergency system
+                extraHeaders: {
+                    'X-Emergency-System': 'true',
+                    'X-System-Type': 'citizen_portal',
+                    'X-Connection-Attempt': connectionState.connectionAttempts.toString()
+                }
+            };
+            
+            socket = io('http://localhost:8081', emergencyConfig);
+
+            socket.on('connect', () => {
+                connectionState.isConnecting = false;
+                connectionState.isInCooldown = false;
+                connectionState.connectionAttempts = 0;
+                isConnected = true;
+                updateConnectionStatus(true);
+                console.log('✅ Connected to DRDO Emergency Server with TCP optimizations');
+            });
+
+            socket.on('disconnect', (reason) => {
+                connectionState.isConnecting = false;
+                isConnected = false;
+                updateConnectionStatus(false);
+                console.log(`❌ Disconnected from server (${reason})`);
+                
+                // Implement cooldown after multiple failed attempts
+                if (connectionState.connectionAttempts >= connectionState.maxAttempts) {
+                    connectionState.isInCooldown = true;
+                    console.log(`🔄 Too many connection attempts. Cooling down for ${connectionState.cooldownPeriod / 1000}s`);
+                }
+            });
+
+            socket.on('connect_error', (error) => {
+                connectionState.isConnecting = false;
+                updateConnectionStatus(false);
+                console.error('Connection error:', error);
+                
+                // Implement cooldown after multiple failed attempts
+                if (connectionState.connectionAttempts >= connectionState.maxAttempts) {
+                    connectionState.isInCooldown = true;
+                    console.log(`🔄 Connection errors detected. Cooling down for ${connectionState.cooldownPeriod / 1000}s`);
+                }
+            });
+
+            // Listen for emergency alerts
+            socket.on('notification:emergency_alert', (alert) => {
+                showAlert(alert);
+            });
+
+            socket.on('incident:created', (response) => {
+                showNotification('✅ Your report has been submitted successfully!', 'success');
+            });
+
+            socket.on('error', (error) => {
+                showNotification(`❌ Error: ${error.message}`, 'error');
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionIndicator');
+            const status = document.getElementById('connectionStatus');
+            
+            if (connected) {
+                indicator.style.background = '#10b981';
+                status.textContent = 'Connected to emergency services';
+            } else {
+                indicator.style.background = '#ef4444';
+                status.textContent = 'Connecting to emergency services...';
+            }
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        currentLocation = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        };
+                        
+                        document.getElementById('locationInfo').textContent = 
+                            `Lat: ${currentLocation.latitude.toFixed(6)}, Lng: ${currentLocation.longitude.toFixed(6)}`;
+                    },
+                    (error) => {
+                        document.getElementById('locationInfo').textContent = 
+                            'Location access denied. Please enable location services.';
+                    }
+                );
+            } else {
+                document.getElementById('locationInfo').textContent = 
+                    'Geolocation is not supported by this browser.';
+            }
+        }
+
+        function updateLocation() {
+            document.getElementById('locationInfo').textContent = 'Getting location...';
+            getCurrentLocation();
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function handleIncidentSubmit(e) {
+            e.preventDefault();
+            
+            if (!isConnected) {
+                showNotification('❌ Not connected to server. Please try again.', 'error');
+                return;
+            }
+            
+            // Use selected location from map or current location as fallback
+            const reportLocation = selectedLocation || currentLocation;
+            
+            const incident = {
+                title: document.getElementById('incidentTitle').value,
+                description: document.getElementById('incidentDetails').value,
+                category: document.getElementById('incidentType').value,
+                severity: 'MEDIUM',
+                location: {
+                    address: document.getElementById('incidentLocation').value,
+                    ...reportLocation
+                },
+                reporterName: document.getElementById('reporterName').value || 'Anonymous',
+                reporterPhone: document.getElementById('reporterPhone').value || 'Not provided'
+            };
+            
+            // Validate location
+            if (!reportLocation) {
+                alert('⚠️ Please set incident location on the map or enable GPS location.');
+                return;
+            }
+            
+            socket.emit('incident:create', incident);
+            
+            // Reset form and clear map markers
+            document.getElementById('incidentForm').reset();
+            if (incidentLocationMarker) {
+                locationMap.removeLayer(incidentLocationMarker);
+                incidentLocationMarker = null;
+            }
+            selectedLocation = null;
+            document.getElementById('locationStatus').textContent = 'Click on map or use GPS to set location';
+            
+            showNotification('📤 Submitting your report...', 'info');
+        }
+
+        function submitUrgentReport() {
+            if (!isConnected) {
+                showNotification('❌ Not connected to server. Please try again.', 'error');
+                return;
+            }
+            
+            const incident = {
+                title: document.getElementById('incidentTitle').value || 'Urgent Security Report',
+                description: document.getElementById('incidentDetails').value || 'Urgent situation requiring immediate attention',
+                category: document.getElementById('incidentType').value || 'OTHER',
+                severity: 'HIGH',
+                location: {
+                    address: document.getElementById('incidentLocation').value,
+                    ...currentLocation
+                },
+                reporterName: document.getElementById('reporterName').value || 'Anonymous',
+                reporterPhone: document.getElementById('reporterPhone').value || 'Not provided'
+            };
+            
+            socket.emit('incident:create', incident);
+            
+            // Reset form
+            document.getElementById('incidentForm').reset();
+            
+            showNotification('⚡ Urgent report submitted! Emergency services notified.', 'warning');
+        }
+
+        function emergencyAlert() {
+            if (!isConnected) {
+                alert('Connection lost! Please call emergency services directly: 100');
+                return;
+            }
+            
+            const confirmed = confirm('🚨 EMERGENCY ALERT\n\nThis will immediately notify emergency services and security personnel.\n\nPress OK to confirm emergency.');
+            
+            if (confirmed) {
+                const emergency = {
+                    title: 'EMERGENCY ALERT - Citizen Request for Immediate Help',
+                    description: 'Emergency assistance requested through citizen portal. Immediate response required.',
+                    category: 'EMERGENCY_ALERT',
+                    severity: 'CRITICAL',
+                    location: {
+                        address: 'Citizen Emergency Location',
+                        ...currentLocation
+                    },
+                    reporterName: 'Emergency Citizen Alert',
+                    reporterPhone: 'Emergency Portal'
+                };
+                
+                socket.emit('incident:create', emergency);
+                
+                // Also send emergency alert
+                const alert = {
+                    type: 'CITIZEN_EMERGENCY',
+                    message: '🚨 CITIZEN EMERGENCY ALERT - Immediate assistance requested',
+                    severity: 'CRITICAL',
+                    targetAudience: 'ALL'
+                };
+                
+                socket.emit('notification:emergency_alert', alert);
+                
+                showNotification('🚨 EMERGENCY ALERT SENT! Help is on the way!', 'emergency');
+            }
+        }
+
+        function testAlert() {
+            if (!isConnected) {
+                showNotification('❌ Not connected to server.', 'error');
+                return;
+            }
+            
+            const alert = {
+                type: 'TEST_ALERT',
+                message: 'This is a test alert from the citizen portal',
+                severity: 'LOW',
+                targetAudience: 'SELF'
+            };
+            
+            socket.emit('notification:emergency_alert', alert);
+            showNotification('🧪 Test alert sent!', 'info');
+        }
+
+        function requestHelp() {
+            if (!isConnected) {
+                showNotification('❌ Not connected to server.', 'error');
+                return;
+            }
+            
+            const help = {
+                title: 'Non-Emergency Assistance Request',
+                description: 'Citizen requesting non-emergency assistance',
+                category: 'OTHER',
+                severity: 'LOW',
+                location: {
+                    address: 'Assistance Location',
+                    ...currentLocation
+                },
+                reporterName: 'Citizen Help Request',
+                reporterPhone: 'Portal Request'
+            };
+            
+            socket.emit('incident:create', help);
+            showNotification('🆘 Help request submitted!', 'info');
+        }
+
+        function reportSuspicious() {
+            // Quick suspicious activity report
+            const description = prompt('Briefly describe the suspicious activity:');
+            
+            if (description && isConnected) {
+                const incident = {
+                    title: 'Suspicious Activity Report',
+                    description: description,
+                    category: 'SUSPICIOUS_ACTIVITY',
+                    severity: 'MEDIUM',
+                    location: {
+                        address: 'Current Location',
+                        ...currentLocation
+                    },
+                    reporterName: 'Anonymous',
+                    reporterPhone: 'Quick Report'
+                };
+                
+                socket.emit('incident:create', incident);
+                showNotification('👁️ Suspicious activity reported!', 'warning');
+            }
+        }
+
+        function checkStatus() {
+            if (!isConnected) {
+                showNotification('❌ Not connected to server.', 'error');
+                return;
+            }
+            
+            socket.emit('system:request_status');
+            showNotification('📊 Checking system status...', 'info');
+        }
+
+        function showAlert(alert) {
+            const alertsList = document.getElementById('alertsList');
+            
+            if (alertsList.children.length === 1 && alertsList.children[0].style.textAlign === 'center') {
+                alertsList.innerHTML = '';
+            }
+            
+            const alertElement = document.createElement('div');
+            alertElement.className = `notification ${alert.severity === 'CRITICAL' ? 'danger' : 
+                                     alert.severity === 'HIGH' ? 'warning' : ''}`;
+            
+            alertElement.innerHTML = `
+                <span style="font-size: 1.5rem;">${alert.severity === 'CRITICAL' ? '🚨' : 
+                                                     alert.severity === 'HIGH' ? '⚠️' : 'ℹ️'}</span>
+                <div>
+                    <strong>${alert.type}</strong>
+                    <p>${alert.message}</p>
+                    <small>${new Date().toLocaleString()}</small>
+                </div>
+            `;
+            
+            alertsList.insertBefore(alertElement, alertsList.firstChild);
+            
+            // Auto-switch to alerts tab
+            showTab('alerts');
+            document.querySelector('.tab[onclick="showTab(\'alerts\')"]').classList.add('active');
+        }
+
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'error' ? 'rgba(239, 68, 68, 0.95)' :
+                             type === 'warning' ? 'rgba(251, 191, 36, 0.95)' :
+                             type === 'emergency' ? 'rgba(220, 38, 38, 0.95)' :
+                             'rgba(34, 197, 94, 0.95)'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                z-index: 1000;
+                max-width: 300px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                animation: slideIn 0.3s ease;
+            `;
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 5000);
+        }
+
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Initialize the app when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

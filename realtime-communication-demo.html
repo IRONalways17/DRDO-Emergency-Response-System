@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRDO Real-time Communication Demo</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a2e;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .demo-section {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #374151;
+        }
+        .json-message {
+            background: #0f172a;
+            border: 1px solid #374151;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .message-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 10px;
+            border: 1px solid #3b82f6;
+        }
+        .site {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            border-radius: 5px;
+            padding: 10px;
+            text-align: center;
+            min-width: 150px;
+        }
+        .arrow {
+            font-size: 24px;
+            color: #60a5fa;
+        }
+        .event-type {
+            color: #10b981;
+            font-weight: bold;
+        }
+        .timestamp {
+            color: #6b7280;
+            font-size: 11px;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin: 5px 0;
+        }
+        .connected { background: #10b981; color: white; }
+        .disconnected { background: #ef4444; color: white; }
+        .button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 DRDO Real-time Communication System</h1>
+            <p>Live JSON Message Exchange Between Sites</p>
+            <div class="status" id="connectionStatus">Disconnected</div>
+        </div>
+
+        <div class="demo-section">
+            <h2>📡 Real-time Message Flow</h2>
+            <div class="message-flow">
+                <div class="site">
+                    <strong>🏠 Citizen Portal</strong><br>
+                    <small>Port 3003</small>
+                </div>
+                <div class="arrow">📤 JSON Message →</div>
+                <div class="site">
+                    <strong>🚀 Real-time Server</strong><br>
+                    <small>Port 8081</small>
+                </div>
+                <div class="arrow">📤 JSON Broadcast →</div>
+                <div class="site">
+                    <strong>🏢 Command Center</strong><br>
+                    <small>Port 3002</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>📝 Sample JSON Messages</h2>
+
+            <h3>1. Incident Report (Citizen → Server)</h3>
+            <div class="json-message">{
+  "event": "incident:create",
+  "data": {
+    "title": "Suspicious Activity",
+    "description": "Unattended package near main entrance",
+    "category": "SUSPICIOUS_ACTIVITY",
+    "severity": "MEDIUM",
+    "location": {
+      "latitude": 28.6139,
+      "longitude": 77.2090,
+      "address": "DRDO Headquarters Main Gate"
+    },
+    "reporterName": "Anonymous",
+    "reporterPhone": "Not provided",
+    "createdAt": "2025-08-28T19:45:00.000Z",
+    "source": "citizen_portal"
+  },
+  "socketId": "abc123def456",
+  "user": {
+    "id": "dev_user_123456789",
+    "role": "CITIZEN",
+    "username": "citizen_user"
+  }
+}</div>
+
+            <h3>2. Incident Broadcast (Server → Command Center)</h3>
+            <div class="json-message">{
+  "event": "incident:new",
+  "data": {
+    "title": "Suspicious Activity",
+    "description": "Unattended package near main entrance",
+    "category": "SUSPICIOUS_ACTIVITY",
+    "severity": "MEDIUM",
+    "location": {
+      "latitude": 28.6139,
+      "longitude": 77.2090,
+      "address": "DRDO Headquarters Main Gate"
+    },
+    "reporterName": "Anonymous",
+    "incidentId": "INC-2025-08-28-001",
+    "status": "REPORTED",
+    "createdAt": "2025-08-28T19:45:00.000Z",
+    "estimatedResponseTime": "15 minutes"
+  },
+  "broadcastTo": ["role:admin", "role:operator"],
+  "timestamp": "2025-08-28T19:45:00.123Z"
+}</div>
+
+            <h3>3. Responder Status Update (Responder → Server)</h3>
+            <div class="json-message">{
+  "event": "responder:update_status",
+  "data": {
+    "responderId": "RDR-001",
+    "status": "EN_ROUTE",
+    "incidentId": "INC-2025-08-28-001",
+    "location": {
+      "latitude": 28.6150,
+      "longitude": 77.2100,
+      "accuracy": 5.2
+    },
+    "eta": "8 minutes",
+    "updatedAt": "2025-08-28T19:47:30.000Z"
+  },
+  "socketId": "responder_socket_789",
+  "user": {
+    "id": "responder_001",
+    "role": "RESPONDER",
+    "responderId": "RDR-001",
+    "responderType": "SECURITY"
+  }
+}</div>
+
+            <h3>4. Emergency Alert Broadcast (Server → All Clients)</h3>
+            <div class="json-message">{
+  "event": "emergency:alert",
+  "data": {
+    "alertId": "ALERT-2025-08-28-001",
+    "type": "SECURITY_THREAT",
+    "message": "Security breach detected at Main Gate. All personnel take cover.",
+    "severity": "CRITICAL",
+    "location": {
+      "latitude": 28.6139,
+      "longitude": 77.2090,
+      "radius": 500
+    },
+    "instructions": [
+      "Evacuate the area immediately",
+      "Contact security at extension 911",
+      "Do not approach suspicious individuals"
+    ],
+    "issuedBy": "Security Control Room",
+    "issuedAt": "2025-08-28T19:50:00.000Z",
+    "expiresAt": "2025-08-28T20:00:00.000Z"
+  },
+  "broadcastTo": "all_clients",
+  "priority": "URGENT",
+  "timestamp": "2025-08-28T19:50:00.456Z"
+}</div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🔧 Socket.IO Event Handlers</h2>
+            <div class="json-message">// Server-side Event Handlers
+socket.on('incident:create', (data) => {
+    // Process incident from citizen
+    console.log('New incident:', data);
+    
+    // Broadcast to command center
+    io.to('role:admin').emit('incident:new', processedData);
+    io.to('role:operator').emit('incident:new', processedData);
+});
+
+socket.on('responder:update_status', (data) => {
+    // Update responder status
+    console.log('Responder status update:', data);
+    
+    // Broadcast to relevant clients
+    io.to('role:admin').emit('responder:status_update', data);
+});
+
+socket.on('emergency:alert', (data) => {
+    // Broadcast emergency to all connected clients
+    io.emit('emergency:alert', data);
+});</div>
+
+            <div class="json-message">// Client-side Event Listeners
+socket.on('incident:new', (incident) => {
+    // Add to incident list
+    updateIncidentList(incident);
+    // Show notification
+    showNotification(incident);
+});
+
+socket.on('responder:status_update', (update) => {
+    // Update responder on map
+    updateResponderMarker(update);
+});
+
+socket.on('emergency:alert', (alert) => {
+    // Show emergency alert
+    showEmergencyAlert(alert);
+});</div>
+        </div>
+
+        <div class="demo-section">
+            <h2>⚡ Live Message Monitor</h2>
+            <button class="button" onclick="simulateIncident()">📝 Simulate Incident Report</button>
+            <button class="button" onclick="simulateResponderUpdate()">🚗 Simulate Responder Update</button>
+            <button class="button" onclick="simulateEmergencyAlert()">🚨 Simulate Emergency Alert</button>
+            <button class="button" onclick="clearMessages()">🗑️ Clear Messages</button>
+            
+            <div id="messageLog" style="margin-top: 20px; max-height: 300px; overflow-y: auto; background: #0f172a; padding: 10px; border-radius: 5px;">
+                <div style="color: #6b7280; font-style: italic;">Message log will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let messageCount = 0;
+
+        // Initialize Socket.IO connection
+        function initSocket() {
+            socket = io('http://localhost:8081');
+
+            socket.on('connect', () => {
+                document.getElementById('connectionStatus').className = 'status connected';
+                document.getElementById('connectionStatus').textContent = 'Connected to Real-time Server';
+                logMessage('🔗 Connected to real-time server', 'success');
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('connectionStatus').className = 'status disconnected';
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                logMessage('🔌 Disconnected from server', 'error');
+            });
+
+            // Listen for real-time events
+            socket.on('incident:new', (data) => {
+                logMessage('📝 New incident received: ' + JSON.stringify(data, null, 2), 'info');
+            });
+
+            socket.on('responder:status_update', (data) => {
+                logMessage('🚗 Responder update: ' + JSON.stringify(data, null, 2), 'info');
+            });
+
+            socket.on('emergency:alert', (data) => {
+                logMessage('🚨 Emergency alert: ' + JSON.stringify(data, null, 2), 'warning');
+            });
+        }
+
+        // Log messages to the monitor
+        function logMessage(message, type = 'info') {
+            const log = document.getElementById('messageLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                success: '#10b981',
+                error: '#ef4444',
+                warning: '#f59e0b',
+                info: '#3b82f6'
+            };
+            
+            log.innerHTML += `<div style="margin: 5px 0; padding: 5px; border-left: 3px solid ${colors[type]}; background: rgba(0,0,0,0.2);">
+                <span class="timestamp">[${timestamp}]</span> ${message}
+            </div>`;
+            
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Simulate different types of messages
+        function simulateIncident() {
+            const incidentData = {
+                title: "Test Incident Report",
+                description: "This is a simulated incident for demonstration",
+                category: "SUSPICIOUS_ACTIVITY",
+                severity: "MEDIUM",
+                location: {
+                    latitude: 28.6139 + (Math.random() - 0.5) * 0.01,
+                    longitude: 77.2090 + (Math.random() - 0.5) * 0.01,
+                    address: "Test Location"
+                },
+                reporterName: "Demo User",
+                createdAt: new Date().toISOString()
+            };
+
+            if (socket && socket.connected) {
+                socket.emit('incident:create', incidentData);
+                logMessage('📤 Sent incident report: ' + JSON.stringify(incidentData, null, 2), 'success');
+            } else {
+                logMessage('❌ Cannot send - not connected to server', 'error');
+            }
+        }
+
+        function simulateResponderUpdate() {
+            const responderData = {
+                responderId: "DEMO-RDR-001",
+                status: "EN_ROUTE",
+                incidentId: "DEMO-INC-001",
+                location: {
+                    latitude: 28.6139 + (Math.random() - 0.5) * 0.01,
+                    longitude: 77.2090 + (Math.random() - 0.5) * 0.01,
+                    accuracy: Math.random() * 10
+                },
+                eta: Math.floor(Math.random() * 20) + " minutes"
+            };
+
+            if (socket && socket.connected) {
+                socket.emit('responder:update_status', responderData);
+                logMessage('📤 Sent responder update: ' + JSON.stringify(responderData, null, 2), 'success');
+            } else {
+                logMessage('❌ Cannot send - not connected to server', 'error');
+            }
+        }
+
+        function simulateEmergencyAlert() {
+            const alertData = {
+                alertId: "DEMO-ALERT-" + Date.now(),
+                type: "SECURITY_THREAT",
+                message: "This is a simulated emergency alert for demonstration purposes",
+                severity: "HIGH",
+                location: {
+                    latitude: 28.6139,
+                    longitude: 77.2090,
+                    radius: 1000
+                },
+                instructions: [
+                    "Follow emergency procedures",
+                    "Contact security immediately",
+                    "Stay alert and report suspicious activity"
+                ],
+                issuedBy: "Demo System",
+                issuedAt: new Date().toISOString()
+            };
+
+            if (socket && socket.connected) {
+                socket.emit('emergency:alert', alertData);
+                logMessage('📤 Sent emergency alert: ' + JSON.stringify(alertData, null, 2), 'warning');
+            } else {
+                logMessage('❌ Cannot send - not connected to server', 'error');
+            }
+        }
+
+        function clearMessages() {
+            document.getElementById('messageLog').innerHTML = 
+                '<div style="color: #6b7280; font-style: italic;">Message log cleared...</div>';
+        }
+
+        // Initialize when page loads
+        window.onload = function() {
+            initSocket();
+        };
+    </script>
+</body>
+</html>

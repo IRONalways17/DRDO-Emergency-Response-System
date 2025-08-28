@@ -1,0 +1,14 @@
+{
+  "name": "drdo-command-center",
+  "version": "1.0.0",
+  "description": "DRDO Emergency Response Command Center Dashboard",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "path": "^0.12.7"
+  }
+}

@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRDO Emergency Response - Command Center</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1a1a2e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #374151;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(45deg, #dc2626, #b91c1c);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.disconnected {
+            background: #ef4444;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            gap: 2rem;
+        }
+        
+        .alert-banner {
+            background: linear-gradient(90deg, #dc2626, #b91c1c);
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            animation: alertPulse 2s infinite;
+        }
+        
+        @keyframes alertPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stat-info h3 {
+            color: #9ca3af;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+        
+        .map-section, .incidents-section, .responders-section {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid #374151;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #374151;
+            background: rgba(17, 24, 39, 0.8);
+        }
+        
+        .section-header h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .section-content {
+            padding: 1.5rem;
+        }
+        
+        .map-container {
+            height: 500px;
+            background: #111827;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #tacticalMap {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+        
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .map-control-btn {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+        
+        .map-control-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+        
+        .gps-status {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .gps-active {
+            color: #10b981;
+        }
+        
+        .gps-inactive {
+            color: #ef4444;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            background: #1f2937;
+            color: white;
+        }
+        
+        .leaflet-popup-tip {
+            background: #1f2937;
+        }
+        
+        .map-placeholder {
+            font-size: 3rem;
+            opacity: 0.7;
+        }
+        
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        .incident-item, .responder-item {
+            background: rgba(17, 24, 39, 0.8);
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .incident-header, .responder-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .severity-badge, .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .severity-high {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+        
+        .severity-critical {
+            background: rgba(220, 38, 38, 0.3);
+            color: #f87171;
+        }
+        
+        .status-available {
+            background: rgba(34, 197, 94, 0.2);
+            color: #86efac;
+        }
+        
+        .status-busy {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fde047;
+        }
+        
+        .action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #374151;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-emergency {
+            background: linear-gradient(45deg, #dc2626, #b91c1c);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #2563eb, #1d4ed8);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .live-feed {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #111827;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .feed-item {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #374151;
+            font-size: 0.9rem;
+            color: #d1d5db;
+        }
+        
+        .feed-time {
+            color: #6b7280;
+            font-size: 0.8rem;
+        }
+        
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+            
+            .action-bar {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">🔒</div>
+            <div>
+                <h1>DRDO Emergency Response</h1>
+                <p style="color: #9ca3af; font-size: 0.9rem;">Command Center</p>
+            </div>
+        </div>
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot" id="connectionStatus"></div>
+                <span id="connectionText">Connecting...</span>
+            </div>
+            <div id="currentTime"></div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Alert Banner -->
+        <div class="alert-banner" id="alertBanner" style="display: none;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 1.5rem;">🚨</span>
+                <div>
+                    <strong>EMERGENCY ALERT:</strong>
+                    <span id="alertMessage">Active emergency situation</span>
+                </div>
+            </div>
+            <button class="btn" onclick="acknowledgeAlert()" style="background: rgba(255,255,255,0.2);">
+                Acknowledge
+            </button>
+        </div>
+
+        <!-- Statistics Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h3>Active Incidents</h3>
+                    <div class="stat-value" id="activeIncidentsCount">0</div>
+                </div>
+                <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">
+                    🚨
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h3>Available Responders</h3>
+                    <div class="stat-value" id="availableRespondersCount">0</div>
+                </div>
+                <div class="stat-icon" style="background: rgba(34, 197, 94, 0.2); color: #86efac;">
+                    👮‍♂️
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h3>Response Time</h3>
+                    <div class="stat-value">4.2<span style="font-size: 1rem; color: #9ca3af;">min</span></div>
+                </div>
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd;">
+                    ⏱️
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-info">
+                    <h3>Threat Level</h3>
+                    <div class="stat-value" style="color: #fbbf24;" id="threatLevel">MEDIUM</div>
+                </div>
+                <div class="stat-icon" style="background: rgba(251, 191, 36, 0.2); color: #fde047;">
+                    ⚠️
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content-grid">
+            <!-- Map Section -->
+            <div>
+                <div class="map-section">
+                    <div class="section-header">
+                        <h2>📍 Tactical Map</h2>
+                    </div>
+                    <div class="section-content">
+                        <div class="map-container" id="mapContainer">
+                            <div id="tacticalMap"></div>
+                            <div class="map-controls">
+                                <button class="map-control-btn" onclick="centerOnIncidents()">📍 Incidents</button>
+                                <button class="map-control-btn" onclick="centerOnResponders()">🚗 Responders</button>
+                                <button class="map-control-btn" onclick="toggleGPSTracking()">🛰️ GPS</button>
+                                <button class="map-control-btn" onclick="toggleHeatmap()">🔥 Heatmap</button>
+                            </div>
+                            <div class="gps-status" id="gpsStatus">
+                                <span class="gps-inactive">GPS: Disabled</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Activity Feed -->
+                <div class="map-section" style="margin-top: 2rem;">
+                    <div class="section-header">
+                        <h2>📡 Live Activity Feed</h2>
+                    </div>
+                    <div class="section-content">
+                        <div class="live-feed" id="activityFeed">
+                            <div class="feed-item">
+                                <span class="feed-time">[Loading...]</span> System initializing...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Active Incidents -->
+                <div class="incidents-section">
+                    <div class="section-header">
+                        <h2>🚨 Active Incidents</h2>
+                    </div>
+                    <div class="section-content">
+                        <div id="incidentsList">
+                            <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+                                <div style="font-size: 2rem; margin-bottom: 1rem;">✅</div>
+                                <p>No active incidents</p>
+                                <p style="font-size: 0.9rem; color: #6b7280;">All systems operational</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Responder Status -->
+                <div class="responders-section">
+                    <div class="section-header">
+                        <h2>👮‍♂️ Responder Status</h2>
+                    </div>
+                    <div class="section-content">
+                        <div id="respondersList">
+                            <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+                                <div style="font-size: 2rem; margin-bottom: 1rem;">👮‍♂️</div>
+                                <p>Connecting to responders...</p>
+                                <p style="font-size: 0.9rem; color: #6b7280;">Real-time status updating</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+        <div class="action-buttons">
+            <button class="btn btn-emergency" onclick="sendEmergencyAlert()">
+                🚨 Emergency Alert
+            </button>
+            <button class="btn btn-warning" onclick="reportSecurityBreach()">
+                ⚠️ Security Breach
+            </button>
+            <button class="btn btn-primary" onclick="broadcastMessage()">
+                📢 Broadcast
+            </button>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <span style="color: #9ca3af; font-size: 0.9rem;">
+                Last Update: <span id="lastUpdate">--:--:--</span>
+            </span>
+            <button class="btn" onclick="openSettings()" style="background: #374151;">
+                ⚙️ Settings
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let incidents = [];
+        let responders = [];
+        let isConnected = false;
+        
+        // Map variables
+        let tacticalMap;
+        let gpsWatchId = null;
+        let currentPosition = null;
+        let incidentMarkers = [];
+        let responderMarkers = [];
+        let gpsTrackingEnabled = false;
+        let heatmapEnabled = false;
+        
+        // Custom map icons
+        const mapIcons = {
+            incident: {
+                fire: L.divIcon({
+                    html: '<div style="background: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; border: 2px solid white;">🔥</div>',
+                    className: 'custom-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                }),
+                medical: L.divIcon({
+                    html: '<div style="background: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; border: 2px solid white;">🚑</div>',
+                    className: 'custom-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                }),
+                security: L.divIcon({
+                    html: '<div style="background: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; border: 2px solid white;">🚨</div>',
+                    className: 'custom-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                }),
+                default: L.divIcon({
+                    html: '<div style="background: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; border: 2px solid white;">⚠️</div>',
+                    className: 'custom-icon',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            },
+            responder: {
+                active: L.divIcon({
+                    html: '<div style="background: #059669; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; border: 2px solid white;">🚗</div>',
+                    className: 'custom-icon',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                }),
+                busy: L.divIcon({
+                    html: '<div style="background: #d97706; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; border: 2px solid white;">🚗</div>',
+                    className: 'custom-icon',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                }),
+                offline: L.divIcon({
+                    html: '<div style="background: #6b7280; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; border: 2px solid white;">🚗</div>',
+                    className: 'custom-icon',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                })
+            },
+            gps: L.divIcon({
+                html: '<div style="background: #3b82f6; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; border: 2px solid white; animation: pulse 2s infinite;">📍</div>',
+                className: 'custom-icon',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            })
+        };
+
+        // Initialize the application
+        function initializeApp() {
+            updateClock();
+            setInterval(updateClock, 1000);
+            
+            // Initialize map
+            initializeMap();
+            
+            connectToServer();
+            
+            // Update last activity timestamp
+            setInterval(() => {
+                if (isConnected) {
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                }
+            }, 5000);
+        }
+        
+        // Initialize Leaflet map with OpenStreetMap
+        function initializeMap() {
+            // Initialize map centered on New Delhi, India (DRDO headquarters area)
+            tacticalMap = L.map('tacticalMap').setView([28.6139, 77.2090], 12);
+            
+            // Add OpenStreetMap tile layer with attribution
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                minZoom: 3
+            }).addTo(tacticalMap);
+            
+            // Add dark mode style (optional)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
+                maxZoom: 19,
+                minZoom: 3
+            }).addTo(tacticalMap);
+            
+            // Add map click handler for new incident reporting
+            tacticalMap.on('click', function(e) {
+                if (confirm('Report new incident at this location?')) {
+                    reportIncidentAtLocation(e.latlng.lat, e.latlng.lng);
+                }
+            });
+            
+            // Add scale control
+            L.control.scale({
+                metric: true,
+                imperial: false,
+                position: 'bottomright'
+            }).addTo(tacticalMap);
+            
+            console.log('🗺️ Tactical map initialized with OpenStreetMap');
+        }
+        
+        // GPS Functions
+        function toggleGPSTracking() {
+            if (gpsTrackingEnabled) {
+                stopGPSTracking();
+            } else {
+                startGPSTracking();
+            }
+        }
+        
+        function startGPSTracking() {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by this browser.');
+                return;
+            }
+            
+            document.getElementById('gpsStatus').innerHTML = '<span class="gps-active">GPS: Acquiring...</span>';
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 30000
+            };
+            
+            gpsWatchId = navigator.geolocation.watchPosition(
+                onGPSSuccess,
+                onGPSError,
+                options
+            );
+            
+            gpsTrackingEnabled = true;
+            console.log('🛰️ GPS tracking started');
+        }
+        
+        function stopGPSTracking() {
+            if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(gpsWatchId);
+                gpsWatchId = null;
+            }
+            
+            gpsTrackingEnabled = false;
+            document.getElementById('gpsStatus').innerHTML = '<span class="gps-inactive">GPS: Disabled</span>';
+            
+            // Remove current position marker if exists
+            if (currentPosition) {
+                tacticalMap.removeLayer(currentPosition);
+                currentPosition = null;
+            }
+            
+            console.log('🛰️ GPS tracking stopped');
+        }
+        
+        function onGPSSuccess(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            
+            // Update GPS status
+            document.getElementById('gpsStatus').innerHTML = 
+                `<span class="gps-active">GPS: Active (±${Math.round(accuracy)}m)</span>`;
+            
+            // Remove previous position marker
+            if (currentPosition) {
+                tacticalMap.removeLayer(currentPosition);
+            }
+            
+            // Add new position marker
+            currentPosition = L.marker([lat, lng], { icon: mapIcons.gps })
+                .addTo(tacticalMap)
+                .bindPopup(`
+                    <div style="color: #1f2937;">
+                        <strong>🛰️ Current Position</strong><br>
+                        Lat: ${lat.toFixed(6)}<br>
+                        Lng: ${lng.toFixed(6)}<br>
+                        Accuracy: ±${Math.round(accuracy)}m<br>
+                        Time: ${new Date().toLocaleTimeString()}
+                    </div>
+                `);
+            
+            // Emit GPS update to server
+            if (socket && socket.connected) {
+                socket.emit('location:update', {
+                    latitude: lat,
+                    longitude: lng,
+                    accuracy: accuracy,
+                    timestamp: Date.now()
+                });
+            }
+            
+            console.log(`📍 GPS position updated: ${lat.toFixed(6)}, ${lng.toFixed(6)} (±${Math.round(accuracy)}m)`);
+        }
+        
+        function onGPSError(error) {
+            let errorMessage = 'GPS Error: ';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage += 'Location access denied by user';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage += 'Location information unavailable';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage += 'Location request timed out';
+                    break;
+                default:
+                    errorMessage += 'Unknown error occurred';
+                    break;
+            }
+            
+            document.getElementById('gpsStatus').innerHTML = '<span class="gps-inactive">GPS: Error</span>';
+            console.error('🛰️', errorMessage);
+        }
+        
+        // Map Control Functions
+        function centerOnIncidents() {
+            if (incidentMarkers.length === 0) {
+                alert('No incidents to display');
+                return;
+            }
+            
+            const group = new L.featureGroup(incidentMarkers);
+            tacticalMap.fitBounds(group.getBounds().pad(0.1));
+        }
+        
+        function centerOnResponders() {
+            if (responderMarkers.length === 0) {
+                alert('No responders to display');
+                return;
+            }
+            
+            const group = new L.featureGroup(responderMarkers);
+            tacticalMap.fitBounds(group.getBounds().pad(0.1));
+        }
+        
+        function toggleHeatmap() {
+            heatmapEnabled = !heatmapEnabled;
+            // Implement heatmap functionality here if needed
+            console.log('🔥 Heatmap toggle:', heatmapEnabled ? 'enabled' : 'disabled');
+        }
+        
+        // Update map markers for incidents
+        function updateIncidentMarkers() {
+            // Clear existing incident markers
+            incidentMarkers.forEach(marker => tacticalMap.removeLayer(marker));
+            incidentMarkers = [];
+            
+            // Add new incident markers
+            incidents.forEach(incident => {
+                if (incident.latitude && incident.longitude) {
+                    const icon = mapIcons.incident[incident.type] || mapIcons.incident.default;
+                    const marker = L.marker([incident.latitude, incident.longitude], { icon })
+                        .addTo(tacticalMap)
+                        .bindPopup(`
+                            <div style="color: #1f2937;">
+                                <strong>🚨 ${incident.type.toUpperCase()}</strong><br>
+                                ID: ${incident.incidentId}<br>
+                                Status: ${incident.status}<br>
+                                Priority: ${incident.priority}<br>
+                                Time: ${new Date(incident.timestamp).toLocaleString()}<br>
+                                <small>${incident.description}</small>
+                            </div>
+                        `);
+                    
+                    incidentMarkers.push(marker);
+                }
+            });
+        }
+        
+        // Update map markers for responders
+        function updateResponderMarkers() {
+            // Clear existing responder markers
+            responderMarkers.forEach(marker => tacticalMap.removeLayer(marker));
+            responderMarkers = [];
+            
+            // Add new responder markers
+            responders.forEach(responder => {
+                if (responder.latitude && responder.longitude) {
+                    const icon = mapIcons.responder[responder.status] || mapIcons.responder.offline;
+                    const marker = L.marker([responder.latitude, responder.longitude], { icon })
+                        .addTo(tacticalMap)
+                        .bindPopup(`
+                            <div style="color: #1f2937;">
+                                <strong>🚗 ${responder.name}</strong><br>
+                                ID: ${responder.responderId}<br>
+                                Status: ${responder.status}<br>
+                                Type: ${responder.type}<br>
+                                Last Update: ${new Date(responder.lastUpdate).toLocaleString()}
+                            </div>
+                        `);
+                    
+                    responderMarkers.push(marker);
+                }
+            });
+        }
+        
+        // Report incident at clicked location
+        function reportIncidentAtLocation(lat, lng) {
+            const incidentData = {
+                type: 'general',
+                description: `Incident reported via map at coordinates ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                latitude: lat,
+                longitude: lng,
+                priority: 'medium',
+                timestamp: Date.now()
+            };
+            
+            if (socket && socket.connected) {
+                socket.emit('incident:report', incidentData);
+                console.log('📍 New incident reported via map click:', incidentData);
+            }
+        }
+
+        function updateClock() {
+            document.getElementById('currentTime').textContent = new Date().toLocaleString();
+        }
+
+        // Connection state management
+        let connectionState = {
+            isConnecting: false,
+            lastConnectionAttempt: 0,
+            connectionAttempts: 0,
+            maxAttempts: 5,
+            cooldownPeriod: 30000, // 30 seconds
+            isInCooldown: false
+        };
+
+        function connectToServer() {
+            // Prevent multiple simultaneous connection attempts
+            if (connectionState.isConnecting) {
+                console.log('⏳ Connection already in progress...');
+                return;
+            }
+
+            // Check cooldown period
+            const now = Date.now();
+            if (connectionState.isInCooldown && (now - connectionState.lastConnectionAttempt) < connectionState.cooldownPeriod) {
+                const remainingTime = Math.ceil((connectionState.cooldownPeriod - (now - connectionState.lastConnectionAttempt)) / 1000);
+                console.log(`🔄 Connection in cooldown. Try again in ${remainingTime} seconds`);
+                addToFeed(`🔄 Connection cooldown active (${remainingTime}s remaining)`, 'warning');
+                return;
+            }
+
+            // Reset cooldown if enough time has passed
+            if (connectionState.isInCooldown && (now - connectionState.lastConnectionAttempt) >= connectionState.cooldownPeriod) {
+                connectionState.isInCooldown = false;
+                connectionState.connectionAttempts = 0;
+            }
+
+            connectionState.isConnecting = true;
+            connectionState.lastConnectionAttempt = now;
+            connectionState.connectionAttempts++;
+
+            addToFeed('🔄 Connecting to DRDO Emergency Server with TCP optimizations...', 'info');
+            
+            // Socket.IO default configuration
+            const emergencyConfig = {
+                timeout: 20000,               // 20 seconds (Socket.IO default)
+                reconnection: true,           // Enable reconnection
+                reconnectionAttempts: 5,      // Standard reconnection attempts
+                reconnectionDelay: 1000,      // 1 second initial delay (Socket.IO default)
+                reconnectionDelayMax: 5000,   // 5 seconds maximum delay (Socket.IO default)
+                randomizationFactor: 0.5,     // Default randomization
+                
+                // Transport settings
+                transports: ['websocket', 'polling'],
+                upgrade: true,                // Allow transport upgrades
+                rememberUpgrade: true,        // Remember transport upgrades
+                
+                // Timeout settings - Socket.IO defaults
+                pingTimeout: 60000,          // 60 seconds (Socket.IO default)
+                pingInterval: 25000,         // 25 seconds (Socket.IO default)
+                
+                // Force new connection settings
+                forceNew: false,             // Reuse connections
+                multiplex: true,             // Multiplex connections
+                
+                // Query parameters
+                query: {
+                    emergency: 'true',       // Mark as emergency connection
+                    system: 'command_center', // Identify connection type
+                    connectionId: `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                },
+                
+                // Extra headers for emergency system
+                extraHeaders: {
+                    'X-Emergency-System': 'true',
+                    'X-System-Type': 'command_center',
+                    'X-Connection-Attempt': connectionState.connectionAttempts.toString()
+                }
+            };
+            
+            socket = io('http://localhost:8081', emergencyConfig);
+
+            socket.on('connect', () => {
+                connectionState.isConnecting = false;
+                connectionState.isInCooldown = false;
+                connectionState.connectionAttempts = 0;
+                isConnected = true;
+                updateConnectionStatus(true);
+                addToFeed('✅ Connected to real-time server with 1-hour timeout', 'success');
+                
+                // Request initial data
+                socket.emit('system:request_status');
+            });
+
+            socket.on('disconnect', (reason) => {
+                connectionState.isConnecting = false;
+                isConnected = false;
+                updateConnectionStatus(false);
+                addToFeed(`❌ Disconnected from server (${reason})`, 'error');
+                
+                // Implement cooldown after multiple failed attempts
+                if (connectionState.connectionAttempts >= connectionState.maxAttempts) {
+                    connectionState.isInCooldown = true;
+                    addToFeed(`🔄 Too many connection attempts. Cooling down for ${connectionState.cooldownPeriod / 1000}s`, 'warning');
+                }
+            });
+
+            socket.on('connect_error', (error) => {
+                connectionState.isConnecting = false;
+                updateConnectionStatus(false);
+                addToFeed(`❌ Connection error: ${error.message}`, 'error');
+                
+                // Implement cooldown after multiple failed attempts
+                if (connectionState.connectionAttempts >= connectionState.maxAttempts) {
+                    connectionState.isInCooldown = true;
+                    addToFeed(`🔄 Connection errors detected. Cooling down for ${connectionState.cooldownPeriod / 1000}s`, 'warning');
+                }
+            });
+
+            // Listen for real-time events
+            socket.on('incident:new', (incident) => {
+                incidents.push(incident);
+                updateIncidentsList();
+                updateStats();
+                updateIncidentMarkers(); // Update map markers
+                addToFeed(`🚨 NEW INCIDENT: ${incident.title} (${incident.severity})`, 'warning');
+                showAlert(`New ${incident.severity} incident: ${incident.title}`);
+            });
+
+            socket.on('incident:update', (update) => {
+                // Update incident in array
+                const incidentIndex = incidents.findIndex(i => i.incidentId === update.incidentId);
+                if (incidentIndex !== -1) {
+                    incidents[incidentIndex] = { ...incidents[incidentIndex], ...update };
+                    updateIncidentsList();
+                    updateIncidentMarkers(); // Update map markers
+                }
+                addToFeed(`📝 Incident updated: ${update.incidentId} -> ${update.status}`, 'info');
+            });
+
+            socket.on('responder:registered', (responder) => {
+                responders.push(responder);
+                updateRespondersList();
+                updateStats();
+                updateResponderMarkers(); // Update map markers
+                addToFeed(`👮‍♂️ New responder registered: ${responder.type}`, 'success');
+            });
+            
+            socket.on('responder:location_update', (data) => {
+                // Update responder location in array
+                const responderIndex = responders.findIndex(r => r.responderId === data.responderId);
+                if (responderIndex !== -1) {
+                    responders[responderIndex].latitude = data.latitude;
+                    responders[responderIndex].longitude = data.longitude;
+                    responders[responderIndex].lastUpdate = data.timestamp;
+                    updateResponderMarkers(); // Update map markers
+                }
+                addToFeed(`📍 Responder location updated: ${data.responderId}`, 'info');
+            });
+
+            socket.on('notification:emergency_alert', (alert) => {
+                addToFeed(`🚨 EMERGENCY ALERT: ${alert.message}`, 'critical');
+                showAlert(alert.message);
+            });
+
+            socket.on('location:responder_update', (location) => {
+                addToFeed(`📍 Responder location updated`, 'info');
+            });
+
+            socket.on('system:userCount', (count) => {
+                addToFeed(`👥 ${count} users connected to system`, 'info');
+            });
+
+            socket.on('error', (error) => {
+                addToFeed(`❌ Error: ${error.message}`, 'error');
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionText');
+            
+            if (connected) {
+                statusDot.className = 'status-dot';
+                statusText.textContent = 'Connected';
+            } else {
+                statusDot.className = 'status-dot disconnected';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('activeIncidentsCount').textContent = incidents.length;
+            document.getElementById('availableRespondersCount').textContent = 
+                responders.filter(r => r.status === 'AVAILABLE').length;
+            
+            // Update threat level based on incidents
+            const criticalIncidents = incidents.filter(i => i.severity === 'CRITICAL').length;
+            const highIncidents = incidents.filter(i => i.severity === 'HIGH').length;
+            
+            let threatLevel = 'LOW';
+            let threatColor = '#10b981';
+            
+            if (criticalIncidents > 0) {
+                threatLevel = 'CRITICAL';
+                threatColor = '#dc2626';
+            } else if (highIncidents > 0) {
+                threatLevel = 'HIGH';
+                threatColor = '#f59e0b';
+            } else if (incidents.length > 0) {
+                threatLevel = 'MEDIUM';
+                threatColor = '#fbbf24';
+            }
+            
+            const threatElement = document.getElementById('threatLevel');
+            threatElement.textContent = threatLevel;
+            threatElement.style.color = threatColor;
+        }
+
+        function updateIncidentsList() {
+            const container = document.getElementById('incidentsList');
+            
+            if (incidents.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">✅</div>
+                        <p>No active incidents</p>
+                        <p style="font-size: 0.9rem; color: #6b7280;">All systems operational</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = incidents.map(incident => `
+                <div class="incident-item">
+                    <div class="incident-header">
+                        <strong>${incident.title}</strong>
+                        <span class="severity-badge severity-${incident.severity.toLowerCase()}">${incident.severity}</span>
+                    </div>
+                    <p style="color: #d1d5db; margin-bottom: 0.5rem;">${incident.description}</p>
+                    <div style="font-size: 0.8rem; color: #9ca3af;">
+                        📍 ${incident.location?.address || 'Location TBD'} • 
+                        🕐 ${new Date(incident.timestamp || Date.now()).toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateRespondersList() {
+            const container = document.getElementById('respondersList');
+            
+            if (responders.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">👮‍♂️</div>
+                        <p>Connecting to responders...</p>
+                        <p style="font-size: 0.9rem; color: #6b7280;">Real-time status updating</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = responders.map(responder => `
+                <div class="responder-item">
+                    <div class="responder-header">
+                        <strong>${responder.name || responder.type || 'Responder'}</strong>
+                        <span class="status-badge status-${(responder.status || 'available').toLowerCase()}">${responder.status || 'AVAILABLE'}</span>
+                    </div>
+                    <p style="color: #d1d5db; margin-bottom: 0.5rem;">${responder.type || 'Security Team'}</p>
+                    <div style="font-size: 0.8rem; color: #9ca3af;">
+                        📞 ${responder.contact?.phone || 'Radio: Alpha-1'} • 
+                        🚗 ${responder.vehicleId || 'On patrol'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addToFeed(message, type = 'info') {
+            const feed = document.getElementById('activityFeed');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const item = document.createElement('div');
+            item.className = 'feed-item';
+            item.innerHTML = `
+                <span class="feed-time">[${timestamp}]</span> ${message}
+            `;
+            
+            if (type === 'critical') item.style.color = '#f87171';
+            if (type === 'warning') item.style.color = '#fbbf24';
+            if (type === 'success') item.style.color = '#86efac';
+            if (type === 'error') item.style.color = '#f87171';
+            
+            feed.insertBefore(item, feed.firstChild);
+            
+            // Keep only last 50 items
+            while (feed.children.length > 50) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+
+        function showAlert(message) {
+            const alertBanner = document.getElementById('alertBanner');
+            const alertMessage = document.getElementById('alertMessage');
+            
+            alertMessage.textContent = message;
+            alertBanner.style.display = 'flex';
+        }
+
+        function acknowledgeAlert() {
+            document.getElementById('alertBanner').style.display = 'none';
+        }
+
+        // Action buttons
+        function sendEmergencyAlert() {
+            if (!isConnected) {
+                alert('Not connected to server!');
+                return;
+            }
+            
+            const alert = {
+                type: 'EMERGENCY_ALERT',
+                message: 'Emergency alert initiated from Command Center',
+                severity: 'CRITICAL',
+                targetAudience: 'ALL'
+            };
+            
+            socket.emit('notification:emergency_alert', alert);
+            addToFeed('📤 Emergency alert sent to all personnel', 'warning');
+        }
+
+        function reportSecurityBreach() {
+            if (!isConnected) {
+                alert('Not connected to server!');
+                return;
+            }
+            
+            const incident = {
+                title: 'Security Breach Detected',
+                description: 'Unauthorized access detected. Security teams dispatched.',
+                severity: 'HIGH',
+                category: 'SECURITY_BREACH',
+                location: {
+                    latitude: 28.6139,
+                    longitude: 77.2090,
+                    address: 'DRDO Command Center'
+                },
+                reporterName: 'Command Center',
+                reporterPhone: '+91-1800-DRDO-COMMAND'
+            };
+            
+            socket.emit('incident:create', incident);
+            addToFeed('📤 Security breach incident reported', 'warning');
+        }
+
+        function broadcastMessage() {
+            const message = prompt('Enter broadcast message:');
+            if (message && isConnected) {
+                const broadcast = {
+                    type: 'GENERAL_BROADCAST',
+                    message: message,
+                    severity: 'MEDIUM',
+                    targetAudience: 'ALL'
+                };
+                
+                socket.emit('notification:emergency_alert', broadcast);
+                addToFeed(`📢 Broadcast sent: ${message}`, 'info');
+            }
+        }
+
+        function openSettings() {
+            alert('Settings panel coming soon!');
+        }
+
+        // Initialize the app when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
